@@ -357,6 +357,26 @@ int main(int argc, char *argv[]) {
         B_pad = malloc(prows_B * pcols_B * sizeof(double));
         memset(A_pad, 0, (prows_A * pcols_A * sizeof(double)));
         memset(B_pad, 0, (prows_B * pcols_B * sizeof(double)));
+        // copy from unpadded global-mats A into padded global-mats A
+        for (int r = 0; r < rows_A; r++)
+        {
+            const int row_start_idx_pad = r*pcols_A; // the rth row starts at pointer r*pcols_A in the padded matrix
+            const int row_start_idx_orig = r*cols_A; // the rth row starts at pointer r*cols_A in the original matrix
+            double * dst = A_pad + row_start_idx_pad;
+            double * src = A + row_start_idx_orig;
+            const size_t row_size_orig = cols_A * sizeof(double); // we need copy only only cols_A doubles from each row. 
+            memcpy(dst,src,row_size_orig);
+        }
+        // copy from unpadded global-mats B into padded global-mats B
+        for (int r = 0; r < rows_B; r++)
+        {
+            const int row_start_idx_pad = r*pcols_B;
+            const int row_start_idx_orig = r*cols_B;
+            double * dst = B_pad + row_start_idx_pad;
+            double * src = B + row_start_idx_orig;
+            const size_t row_size_orig = cols_B * sizeof(double);
+            memcpy(dst,src,row_size_orig);
+        }
     }
     /* Proper 2D scatter */
     scatter_2d_blocks(A, a_local, n, grid);

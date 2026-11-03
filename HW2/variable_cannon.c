@@ -77,10 +77,10 @@ void MatrixMultiply(double *A, double *B, double *C,
     int brows_C, int bcols_C
 ) 
 {
-    printf("MatrixMultiply\n");
+    // printf("MatrixMultiply\n");
     for (int i = 0; i < brows_C; i++)
-        for (int j = 0; j < bcols_B; j++)
-            for (int k = 0; k < brows_B; k++)
+        for (int k = 0; k < brows_B; k++)
+            for (int j = 0; j < bcols_B; j++)
                 C[i*bcols_C + j] += A[i*bcols_A + k] * B[k*bcols_B + j];
 }
 
@@ -413,6 +413,14 @@ int main(int argc, char *argv[]) {
             memcpy(dst,src,row_size_orig);
         }
     }
+    
+    // free the original unpadded A,B allocations. No longer needed. reduce memory. 
+    if(rank == 0)
+    {
+        free(A); 
+        free(B); 
+    }
+    
     /* Proper 2D scatter */
     scatter_2d_blocks(A_pad, a_local, prows_A, pcols_A, brows_A, bcols_A, grid);
     scatter_2d_blocks(B_pad, b_local, prows_B, pcols_B, brows_B, bcols_B, grid);
@@ -437,8 +445,8 @@ int main(int argc, char *argv[]) {
     if (rank == 0) {
         write_matrix_to_file(output_file, C_full, rows_C,cols_C,pcols_C);
         printf("Result written to %s\n", output_file);
-        free(A);
-        free(B);
+        free(A_pad); // free the padding-adjusted matrices instead of the original unpadded matrices
+        free(B_pad); // free the padding-adjusted matrices instead of the original unpadded matrices
         free(C_full);
     }
     printf("Done Writing to file\n");

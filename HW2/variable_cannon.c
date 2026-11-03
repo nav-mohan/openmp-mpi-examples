@@ -283,21 +283,36 @@ void MatrixMatrixMultiply(double *a, double *b, double *c,
 
 
     /* ---------- Main Cannon loop ---------- */
-    for (i = 0; i < dims[0]; i++) { // iterate over the q-1 stages
+    /**
+     * the send-recv operaitons are only required for the first q-1 stages. 
+     * they can be omitted at the final qth stage without affecting correctness of local_C, global_C
+     * they're only essential for restoring local_A and local_B into their original form 
+     * saves on calling 2 send-recv operatons 
+     */
+    for (i = 0; i < dims[0]-1; i++) { // iterate over the q-1 stages
         MatrixMultiply(a, b, c, brows_A, bcols_A, brows_B, bcols_B, brows_C, bcols_C);
 
-        /* Rotate A left */
-        MPI_Sendrecv_replace(a, brows_A * bcols_A, MPI_DOUBLE,
-                             leftrank, 1000 + i,
-                             rightrank, 1000 + i, grid, &status);
-
-        /* Rotate B up */
-        MPI_Sendrecv_replace(b, brows_B * bcols_B, MPI_DOUBLE,
-                             uprank, 2000 + i,
-                             downrank, 2000 + i, grid, &status);
+            /* Rotate A left */
+            MPI_Sendrecv_replace(a, brows_A * bcols_A, MPI_DOUBLE,
+            leftrank, 1000 + i,
+            rightrank, 1000 + i, grid, &status);
+                
+            /* Rotate B up */
+            MPI_Sendrecv_replace(b, brows_B * bcols_B, MPI_DOUBLE,
+            uprank, 2000 + i,
+            downrank, 2000 + i, grid, &status);
     }
+    MatrixMultiply(a, b, c, brows_A, bcols_A, brows_B, bcols_B, brows_C, bcols_C); // final qth stage of multipliaction
+
+    return; // early return
 
     /* ---------- Restore original distribution ---------- */
+    /** 
+     * the last 2 shifts and send-recv below can also be omitted
+     * they only serve to rearange the local_A, local_B are restored in their original order 
+     * so its inconsequential to the correctness of the final answer in local_C or C
+     * saves on calling 2 further shifts and send-recv operations 
+     */
     MPI_Cart_shift(grid, 1, +mycoords[0], &shiftsource, &shiftdest);
     MPI_Sendrecv_replace(a, brows_A * bcols_A, MPI_DOUBLE,
                          shiftdest, 300,

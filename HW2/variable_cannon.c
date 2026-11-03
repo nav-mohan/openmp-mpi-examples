@@ -191,44 +191,55 @@ void scatter_2d_blocks(double *A_global, double *local,
 }
 
 /* ---------- Gather nlocal×nlocal blocks back into global n×n matrix ---------- */
+// the C_matrix is the global padding-adjusted product matrix. dim = (prows x pcols)
+// each blick within the gpam C_matrix is (brows x bcols) block
 void gather_2d_blocks(double *local, double *C_global,
-                      int n, MPI_Comm grid)
+                        int prows, int pcols, 
+                        int brows, int bcols,
+                        MPI_Comm grid)
 {
+    printf("gather_2d_blocks\n");
     int npes, rank;
     MPI_Comm_size(grid, &npes);
     MPI_Comm_rank(grid, &rank);
 
     int dims[2], coords[2];
     MPI_Cart_get(grid, 2, dims, (int[]){1,1}, coords);
-    int nlocal = n / dims[0];
+    // int nlocal = n / dims[0]; // nlocal is now replaced by brows or bcols where applicable
 
-    if (rank == 0) {
-        for (int r = 0; r < npes; r++) {
-            int rc[2];
-            MPI_Cart_coords(grid, r, 2, rc);
+    if (rank == 0) // rank 0 gathers from all other ranks into gpam C_matrix
+    { 
+        for (int r = 0; r < npes; r++) 
+        {
+            int rc[2]; // grid coordinate of rank r
+            MPI_Cart_coords(grid, r, 2, rc); // get grid coordinate of rank r
 
-            int sizes[2]    = { n,      n      };
-            int subsizes[2] = { nlocal, nlocal };
-            int starts[2]   = { rc[0]*nlocal, rc[1]*nlocal };
+            int sizes[2]    = { prows, pcols };
+            int subsizes[2] = { brows, bcols };
+            int starts[2]   = { rc[0]*brows, rc[1]*bcols };
 
             MPI_Datatype sub;
             MPI_Type_create_subarray(2, sizes, subsizes, starts,
                                      MPI_ORDER_C, MPI_DOUBLE, &sub);
             MPI_Type_commit(&sub);
 
-            if (r == 0) {
-                for (int i = 0; i < nlocal; i++) {
-                    double *dst = C_global + (starts[0]+i)*n + starts[1];
-                    const double *src = local + i*nlocal;
-                    memcpy(dst, src, nlocal * sizeof(double));
+            if (r == 0) // if rank 0, do simple memcpy() from local block into global C_matrix
+            {
+                // copy first block from local to global
+                //  copy each brow individually
+                for (int i = 0; i < brows; i++) 
+                {
+                    double *dst = C_global + (starts[0]+i)*pcols + starts[1];
+                    const double *src = local + i*bcols;
+                    memcpy(dst, src, bcols * sizeof(double));
                 }
-            } else {
+            } else { // if not rank 0, do recv()
                 MPI_Recv(C_global, 1, sub, r, 1999, grid, MPI_STATUS_IGNORE);
             }
             MPI_Type_free(&sub);
         }
-    } else {
-        MPI_Send(local, nlocal*nlocal, MPI_DOUBLE, 0, 1999, grid);
+    } else { // if not rank 0 do a send 
+        MPI_Send(local, prows*pcols, MPI_DOUBLE, 0, 1999, grid);
     }
 }
 
@@ -414,7 +425,7 @@ int main(int argc, char *argv[]) {
     /* Gather result back */
     if (rank == 0)
         C_full = malloc(prows_C * pcols_C * sizeof(double));
-    gather_2d_blocks(C, C_full, n, grid);
+    gather_2d_blocks(C, C_full, prows_C, pcols_C, brows_C, bcols_C, grid);
 
     /* Write result to output file */
     if (rank == 0) {

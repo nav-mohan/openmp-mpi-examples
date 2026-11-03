@@ -348,6 +348,16 @@ int main(int argc, char *argv[]) {
     double *b_local = malloc(brows_B * bcols_B * sizeof(double));
     C = calloc(brows_C * bcols_C, sizeof(double));
 
+    // allocate padding-adjusted global-matrix dims
+    double * A_pad;
+    double * B_pad;
+    if(rank == 0)
+    {    
+        A_pad = malloc(prows_A * pcols_A * sizeof(double));
+        B_pad = malloc(prows_B * pcols_B * sizeof(double));
+        memset(A_pad, 0, (prows_A * pcols_A * sizeof(double)));
+        memset(B_pad, 0, (prows_B * pcols_B * sizeof(double)));
+    }
     /* Proper 2D scatter */
     scatter_2d_blocks(A, a_local, n, grid);
     scatter_2d_blocks(B, b_local, n, grid);

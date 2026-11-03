@@ -357,8 +357,8 @@ int main(int argc, char *argv[]) {
         if (rows_B != cols_A)
         {
             fprintf(stderr,"invalid input. A has dimensions %d x %d. B has dimension %d x %d. cols_A should equal rows_B\n", rows_A,cols_A,rows_B,cols_B); fflush(stdout);
-            MPI_Finalize();
             MPI_Abort(MPI_COMM_WORLD, 1); 
+            MPI_Finalize();
             return 1;
         }
     }

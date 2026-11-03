@@ -132,44 +132,53 @@ MPI_Comm create_cartesian_grid(MPI_Comm base_comm, int * brows_A, int * bcols_A,
 }
 
 /* ---------- Scatter global n×n matrix into nlocal×nlocal blocks ---------- */
+// A_matrix is the global padding-adjusted matrix of dimension (prows x pcols) 
+// each block within the gpam matrix is a (brows x bcols) block 
 void scatter_2d_blocks(double *A_global, double *local,
-                       int n, MPI_Comm grid)
+                       int prows, int pcols, 
+                       int brows, int bcols, 
+                       MPI_Comm grid)
 {
+    printf("scatter_2d_blocks\n");
     int npes, rank;
     MPI_Comm_size(grid, &npes);
     MPI_Comm_rank(grid, &rank);
 
     int dims[2], coords[2];
     MPI_Cart_get(grid, 2, dims, (int[]){1,1}, coords);
-    int nlocal = n / dims[0];
 
-    if (rank == 0) {
-        for (int r = 0; r < npes; r++) {
-            int rc[2];
-            MPI_Cart_coords(grid, r, 2, rc);
+    if (rank == 0) { // rank 0 does the scattering
+        for (int r = 0; r < npes; r++) // loop over all processes (including rank 0)
+        {
+            int rc[2]; // coordinates of rank r
+            MPI_Cart_coords(grid, r, 2, rc); // get coordinates for rank r
 
-            int sizes[2]    = { n,      n      };
-            int subsizes[2] = { nlocal, nlocal };
-            int starts[2]   = { rc[0]*nlocal, rc[1]*nlocal };
+            int sizes[2]    = { prows, pcols }; // size of global padding-adjusted matrix
+            int subsizes[2] = { brows, bcols }; // size of each block within gpam
+            int starts[2]   = { rc[0]*brows, rc[1]*bcols }; // block's top-left corner
 
             MPI_Datatype sub;
             MPI_Type_create_subarray(2, sizes, subsizes, starts,
                                      MPI_ORDER_C, MPI_DOUBLE, &sub);
             MPI_Type_commit(&sub);
 
-            if (r == 0) {
-                for (int i = 0; i < nlocal; i++) {
-                    const double *src = A_global + (starts[0]+i)*n + starts[1];
-                    double *dst = local + i*nlocal;
-                    memcpy(dst, src, nlocal * sizeof(double));
+            if (r == 0) // if rank 0 then do a simple memcpy() because src_rank = dst_rank
+            {
+                // copy first block from global to local
+                //  copy each brow individually
+                for (int i = 0; i < brows; i++) 
+                { 
+                    const double *src = A_global + (starts[0]+i)*pcols + starts[1]; // first block
+                    double *dst = local + i*bcols;
+                    memcpy(dst, src, bcols * sizeof(double));
                 }
-            } else {
+            } else { // if not rank 0 then perform actual send()
                 MPI_Send(A_global, 1, sub, r, 999, grid);
             }
             MPI_Type_free(&sub);
         }
     } else {
-        MPI_Recv(local, nlocal*nlocal, MPI_DOUBLE, 0, 999, grid, MPI_STATUS_IGNORE);
+        MPI_Recv(local, brows*bcols, MPI_DOUBLE, 0, 999, grid, MPI_STATUS_IGNORE);
     }
 }
 
@@ -379,8 +388,8 @@ int main(int argc, char *argv[]) {
         }
     }
     /* Proper 2D scatter */
-    scatter_2d_blocks(A, a_local, n, grid);
-    scatter_2d_blocks(B, b_local, n, grid);
+    scatter_2d_blocks(A_pad, a_local, prows_A, pcols_A, brows_A, bcols_A, grid);
+    scatter_2d_blocks(B_pad, b_local, prows_B, pcols_B, brows_B, bcols_B, grid);
 
     double start, end, elapsed;
     start = MPI_Wtime();

@@ -286,7 +286,7 @@ void MatrixMatrixMultiply(double *a, double *b, double *c,
     /**
      * the send-recv operaitons are only required for the first q-1 stages. 
      * they can be omitted at the final qth stage without affecting correctness of local_C, global_C
-     * they're only essential for restoring local_A and local_B into their original form 
+     * they're only essential for moving local_A, local_B into processes if there were a subsequent stage 
      * saves on calling 2 send-recv operatons 
      */
     for (i = 0; i < dims[0]-1; i++) { // iterate over the q-1 stages

@@ -69,11 +69,19 @@ void read_matrix_streaming(const char *filename, double **A, double **B,
 
 
 /* ---------- Local matrix multiplication ---------- */
-void MatrixMultiply(int nlocal, double *A, double *B, double *C) {
-    for (int i = 0; i < nlocal; i++)
-        for (int j = 0; j < nlocal; j++)
-            for (int k = 0; k < nlocal; k++)
-                C[i*nlocal + j] += A[i*nlocal + k] * B[k*nlocal + j];
+// multiply a pair of A-B blocks of size (brows_A x bcols_A) and (brows_B x bcols_B)
+// to get a C-block of dim (brows_C x bcols_C)
+void MatrixMultiply(double *A, double *B, double *C, 
+    int brows_A, int bcols_A, 
+    int brows_B, int bcols_B, 
+    int brows_C, int bcols_C
+) 
+{
+    printf("MatrixMultiply\n");
+    for (int i = 0; i < brows_C; i++)
+        for (int j = 0; j < bcols_B; j++)
+            for (int k = 0; k < brows_B; k++)
+                C[i*bcols_C + j] += A[i*bcols_A + k] * B[k*bcols_B + j];
 }
 
 /* ---------- Write matrix to output file ---------- */
@@ -224,10 +232,14 @@ void gather_2d_blocks(double *local, double *C_global,
     }
 }
 
-void MatrixMatrixMultiply(int n, double *a, double *b, double *c, MPI_Comm grid)
+void MatrixMatrixMultiply(double *a, double *b, double *c, 
+                            int brows_A, int bcols_A, 
+                            int brows_B, int bcols_B, 
+                            int brows_C, int bcols_C, 
+                            MPI_Comm grid)
 {
+    printf("MatrixMatrixMultiply\n");
     int i;
-    int nlocal;
     int npes, myrank, mycoords[2];
     int dims[2], periods[2];
     int uprank, downrank, leftrank, rightrank;
@@ -239,47 +251,45 @@ void MatrixMatrixMultiply(int n, double *a, double *b, double *c, MPI_Comm grid)
     MPI_Comm_rank(grid, &myrank);
     MPI_Cart_get(grid, 2, dims, periods, mycoords);
 
-    nlocal = n / dims[0];
-
     /* Determine neighbors for shifts */
     MPI_Cart_shift(grid, 1, +1, &leftrank, &rightrank);  // left/right along columns
     MPI_Cart_shift(grid, 0, +1, &uprank, &downrank);     // up/down along rows
 
     /* ---------- Initial alignment ---------- */
     MPI_Cart_shift(grid, 1, -mycoords[0], &shiftsource, &shiftdest);
-    MPI_Sendrecv_replace(a, nlocal * nlocal, MPI_DOUBLE,
+    MPI_Sendrecv_replace(a, brows_A * bcols_A, MPI_DOUBLE,
                          shiftdest, 100,
                          shiftsource, 100, grid, &status);
 
     MPI_Cart_shift(grid, 0, -mycoords[1], &shiftsource, &shiftdest);
-    MPI_Sendrecv_replace(b, nlocal * nlocal, MPI_DOUBLE,
+    MPI_Sendrecv_replace(b, brows_B * bcols_B, MPI_DOUBLE,
                          shiftdest, 200,
                          shiftsource, 200, grid, &status);
 
 
     /* ---------- Main Cannon loop ---------- */
-    for (i = 0; i < dims[0]; i++) {
-        MatrixMultiply(nlocal, a, b, c);
+    for (i = 0; i < dims[0]; i++) { // iteratee over each block of rows
+        MatrixMultiply(a, b, c, brows_A, bcols_A, brows_B, bcols_B, brows_C, bcols_C);
 
         /* Rotate A left */
-        MPI_Sendrecv_replace(a, nlocal * nlocal, MPI_DOUBLE,
+        MPI_Sendrecv_replace(a, brows_A * bcols_A, MPI_DOUBLE,
                              leftrank, 1000 + i,
                              rightrank, 1000 + i, grid, &status);
 
         /* Rotate B up */
-        MPI_Sendrecv_replace(b, nlocal * nlocal, MPI_DOUBLE,
+        MPI_Sendrecv_replace(b, brows_B * bcols_B, MPI_DOUBLE,
                              uprank, 2000 + i,
                              downrank, 2000 + i, grid, &status);
     }
 
     /* ---------- Restore original distribution ---------- */
     MPI_Cart_shift(grid, 1, +mycoords[0], &shiftsource, &shiftdest);
-    MPI_Sendrecv_replace(a, nlocal * nlocal, MPI_DOUBLE,
+    MPI_Sendrecv_replace(a, brows_A * bcols_A, MPI_DOUBLE,
                          shiftdest, 300,
                          shiftsource, 300, grid, &status);
 
     MPI_Cart_shift(grid, 0, +mycoords[1], &shiftsource, &shiftdest);
-    MPI_Sendrecv_replace(b, nlocal * nlocal, MPI_DOUBLE,
+    MPI_Sendrecv_replace(b, brows_B * bcols_B, MPI_DOUBLE,
                          shiftdest, 400,
                          shiftsource, 400, grid, &status);
 }
@@ -394,7 +404,7 @@ int main(int argc, char *argv[]) {
     double start, end, elapsed;
     start = MPI_Wtime();
     /* Run Cannon’s algorithm */
-    MatrixMatrixMultiply(n, a_local, b_local, C, grid);
+    MatrixMatrixMultiply(a_local, b_local, C, brows_A, bcols_A, brows_B, bcols_B, brows_C, bcols_C, grid);
     end = MPI_Wtime();
     if (rank == 0) {
         elapsed = end - start;

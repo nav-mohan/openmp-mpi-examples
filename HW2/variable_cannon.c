@@ -105,21 +105,28 @@ void PrintMatrix(int n, int m, double* mat) {
 }
 
 /* ---------- Create Cartesian grid communicator ---------- */
-MPI_Comm create_cartesian_grid(MPI_Comm base_comm, int *nlocal_out, int n)
+// nlocal_out is the size of the block matrices in A,B,C. 
+// now we need 3 integers to specify the size of block-matrices in A,B,C
+MPI_Comm create_cartesian_grid(MPI_Comm base_comm, int * brows_A, int * bcols_A, int * brows_B, int * bcols_B, int * proc_grid_size, int rows_A, int cols_A, int rows_B, int cols_B)
 {
+    printf("create_cartesian_grid\n");
     int npes;
     MPI_Comm_size(base_comm, &npes);
 
-    int dims[2] = {0, 0};
+    int dims[2] = {0, 0}; // square matrix of process-grid. dims[0] = dims[1] = \sqrt{npes}
     MPI_Dims_create(npes, 2, dims);
 
     int periods[2] = {1, 1};  /* wraparound grid for Cannon */
     MPI_Comm grid;
     MPI_Cart_create(base_comm, 2, dims, periods, 1, &grid);
 
-    int nlocal = n / dims[0];
-    if (nlocal_out)
-        *nlocal_out = nlocal;
+    // dims[0] == dims[1] -- square matrix of process grid
+    // remember to round up the block-sizes in anticipatoin of making rows_A a multiple of dims[0]
+    if (brows_A) *brows_A = (rows_A + dims[0] - 1) / dims[0];
+    if (bcols_A) *bcols_A = (cols_A + dims[0] - 1) / dims[0];
+    if (brows_B) *brows_B = (rows_B + dims[0] - 1) / dims[0];
+    if (bcols_B) *bcols_B = (cols_B + dims[0] - 1) / dims[0];
+    if (proc_grid_size) *proc_grid_size = dims[0];
 
     return grid;
 }
@@ -319,11 +326,13 @@ int main(int argc, char *argv[]) {
     printf("done bcast for rows/cols of A,B,C\n");
 
     /* Create Cartesian grid once and reuse */
-    MPI_Comm grid = create_cartesian_grid(MPI_COMM_WORLD, &nlocal, n);
-    
-    double *a_local = malloc(nlocal * nlocal * sizeof(double));
-    double *b_local = malloc(nlocal * nlocal * sizeof(double));
-    C = calloc(nlocal * nlocal, sizeof(double));
+    MPI_Comm grid = create_cartesian_grid(MPI_COMM_WORLD, 
+        &brows_A, &bcols_A, &brows_B, &bcols_B, 
+        &q, 
+        rows_A, cols_A, rows_B, cols_B
+    );
+    brows_C = brows_A;
+    bcols_C = bcols_B;
 
     /* Proper 2D scatter */
     scatter_2d_blocks(A, a_local, n, grid);

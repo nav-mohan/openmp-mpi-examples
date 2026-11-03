@@ -413,7 +413,7 @@ int main(int argc, char *argv[]) {
 
     /* Gather result back */
     if (rank == 0)
-        C_full = malloc(n * n * sizeof(double));
+        C_full = malloc(prows_C * pcols_C * sizeof(double));
     gather_2d_blocks(C, C_full, n, grid);
 
     /* Write result to output file */

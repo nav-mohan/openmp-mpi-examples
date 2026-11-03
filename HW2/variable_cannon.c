@@ -116,8 +116,9 @@ void PrintMatrix(int rows, int cols, double* mat) {
 }
 
 /* ---------- Create Cartesian grid communicator ---------- */
-// nlocal_out is the size of the block matrices in A,B,C. 
+// (brows_* x bcols_*) is the size of the block matrices in A,B,C. 
 // now we need 3 integers to specify the size of block-matrices in A,B,C
+// proc_grid_size is the processor grid size (assuming square qxq)
 MPI_Comm create_cartesian_grid(MPI_Comm base_comm, int * brows_A, int * bcols_A, int * brows_B, int * bcols_B, int * proc_grid_size, int rows_A, int cols_A, int rows_B, int cols_B)
 {
     printf("create_cartesian_grid\n");
@@ -142,7 +143,7 @@ MPI_Comm create_cartesian_grid(MPI_Comm base_comm, int * brows_A, int * bcols_A,
     return grid;
 }
 
-/* ---------- Scatter global n×n matrix into nlocal×nlocal blocks ---------- */
+/* ---------- Scatter global (prows x pcols) matrix into local (brows x bcols) blocks ---------- */
 // A_matrix is the global padding-adjusted matrix of dimension (prows x pcols) 
 // each block within the gpam matrix is a (brows x bcols) block 
 void scatter_2d_blocks(double *A_global, double *local,
@@ -193,7 +194,7 @@ void scatter_2d_blocks(double *A_global, double *local,
     }
 }
 
-/* ---------- Gather nlocal×nlocal blocks back into global n×n matrix ---------- */
+/* ---------- Gather (brows_* x bcols_*) blocks back into global (prows_* x pcols_*) matrix ---------- */
 // the C_matrix is the global padding-adjusted product matrix. dim = (prows x pcols)
 // each blick within the gpam C_matrix is (brows x bcols) block
 void gather_2d_blocks(double *local, double *C_global,
@@ -242,7 +243,7 @@ void gather_2d_blocks(double *local, double *C_global,
             MPI_Type_free(&sub);
         }
     } else { // if not rank 0 do a send 
-        MPI_Send(local, prows*pcols, MPI_DOUBLE, 0, 1999, grid);
+        MPI_Send(local, brows*bcols, MPI_DOUBLE, 0, 1999, grid);
     }
 }
 
@@ -252,7 +253,7 @@ void MatrixMatrixMultiply(double *a, double *b, double *c,
                             int brows_C, int bcols_C, 
                             MPI_Comm grid)
 {
-    printf("MatrixMatrixMultiply\n");
+    // printf("MatrixMatrixMultiply\n");
     int i;
     int npes, myrank, mycoords[2];
     int dims[2], periods[2];
@@ -282,7 +283,7 @@ void MatrixMatrixMultiply(double *a, double *b, double *c,
 
 
     /* ---------- Main Cannon loop ---------- */
-    for (i = 0; i < dims[0]; i++) { // iteratee over each block of rows
+    for (i = 0; i < dims[0]; i++) { // iterate over the q-1 stages
         MatrixMultiply(a, b, c, brows_A, bcols_A, brows_B, bcols_B, brows_C, bcols_C);
 
         /* Rotate A left */
@@ -342,11 +343,12 @@ int main(int argc, char *argv[]) {
         {
             fprintf(stderr,"invalid input. A has dimensions %d x %d. B has dimension %d x %d. cols_A should equal rows_B\n", rows_A,cols_A,rows_B,cols_B); fflush(stdout);
             MPI_Finalize();
+            MPI_Abort(MPI_COMM_WORLD, 1); 
             return 1;
         }
     }
     rows_C = rows_A;
-    cols_C = cols_A;
+    cols_C = cols_B;
 
     printf("start bcast for rows_A = %d, rows_B = %d, cols_A = %d, cols_B = %d \n",rows_A,rows_B,cols_A,cols_B);
     printf("rank %d before bcast\n", rank); fflush(stdout);
@@ -382,8 +384,8 @@ int main(int argc, char *argv[]) {
     C = calloc(brows_C * bcols_C, sizeof(double));
 
     // allocate padding-adjusted global-matrix dims
-    double * A_pad;
-    double * B_pad;
+    double * A_pad = NULL;
+    double * B_pad = NULL;
     if(rank == 0)
     {    
         A_pad = malloc(prows_A * pcols_A * sizeof(double));

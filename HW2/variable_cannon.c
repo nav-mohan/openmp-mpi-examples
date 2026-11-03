@@ -308,6 +308,15 @@ int main(int argc, char *argv[]) {
     rows_C = rows_A;
     cols_C = cols_A;
 
+    printf("start bcast for rows_A = %d, rows_B = %d, cols_A = %d, cols_B = %d \n",rows_A,rows_B,cols_A,cols_B);
+    printf("rank %d before bcast\n", rank); fflush(stdout);
+    MPI_Bcast(&rows_A, 1, MPI_INT, 0, MPI_COMM_WORLD);
+    MPI_Bcast(&rows_B, 1, MPI_INT, 0, MPI_COMM_WORLD);
+    MPI_Bcast(&cols_A, 1, MPI_INT, 0, MPI_COMM_WORLD);
+    MPI_Bcast(&cols_B, 1, MPI_INT, 0, MPI_COMM_WORLD);
+    MPI_Bcast(&rows_C, 1, MPI_INT, 0, MPI_COMM_WORLD);
+    MPI_Bcast(&cols_C, 1, MPI_INT, 0, MPI_COMM_WORLD);
+    printf("done bcast for rows/cols of A,B,C\n");
 
     /* Create Cartesian grid once and reuse */
     MPI_Comm grid = create_cartesian_grid(MPI_COMM_WORLD, &nlocal, n);

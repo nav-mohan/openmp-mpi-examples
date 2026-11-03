@@ -334,6 +334,16 @@ int main(int argc, char *argv[]) {
     brows_C = brows_A;
     bcols_C = bcols_B;
 
+    // brows_A, bcols_A, bcols_B are the padding-adjusted block-sizes 
+    // so padding-adjusted matrix sizes will be proc_grid_size * block-sizes
+    int prows_A, prows_B, pcols_A, pcols_B, prows_C, pcols_C;
+    prows_A = q * brows_A;
+    pcols_A = q * bcols_A;
+    prows_B = q * brows_B;
+    pcols_B = q * bcols_B;
+    prows_C = prows_A;
+    pcols_C = pcols_B;
+
     /* Proper 2D scatter */
     scatter_2d_blocks(A, a_local, n, grid);
     scatter_2d_blocks(B, b_local, n, grid);

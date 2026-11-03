@@ -85,17 +85,20 @@ void MatrixMultiply(double *A, double *B, double *C,
 }
 
 /* ---------- Write matrix to output file ---------- */
-void write_matrix_to_file(const char *filename, double *C, int n) {
+// account for the padding and only write out the top-left (rows_C x cols_C) part of C
+// you'll still need pcols_C to get the pointer arithmetic right
+void write_matrix_to_file(const char *filename, double *C, int rows_C, int cols_C, int pcols_C) 
+    {
     FILE *fp = fopen(filename, "w");
     if (!fp) {
         fprintf(stderr, "Error: Cannot open output file %s\n", filename);
         MPI_Abort(MPI_COMM_WORLD, 1);
     }
 
-    for (int i = 0; i < n; i++) {
-        for (int j = 0; j < n; j++) {
-            fprintf(fp, "%.4f", C[i * n + j]);
-            if (j < n - 1) fprintf(fp, " ");
+    for (int i = 0; i < rows_C; i++) {
+        for (int j = 0; j < cols_C; j++) {
+            fprintf(fp, "%.4f", C[i * pcols_C + j]);
+            if (j < cols_C - 1) fprintf(fp, " ");
         }
         fprintf(fp, "\n");
     }
@@ -103,10 +106,10 @@ void write_matrix_to_file(const char *filename, double *C, int n) {
 }
 
 /* ---------- Debug: Print matrix ---------- */
-void PrintMatrix(int n, int m, double* mat) {
-    for (int i = 0; i < n; i++) {
-        for (int j = 0; j < m; j++) {
-            printf("%8.2f ", mat[i * m + j]);
+void PrintMatrix(int rows, int cols, double* mat) {
+    for (int i = 0; i < rows; i++) {
+        for (int j = 0; j < cols; j++) {
+            printf("%8.2f ", mat[i * cols + j]);
         }
         printf("\n");
     }
@@ -428,13 +431,15 @@ int main(int argc, char *argv[]) {
     gather_2d_blocks(C, C_full, prows_C, pcols_C, brows_C, bcols_C, grid);
 
     /* Write result to output file */
+    printf("Writing to file\n");
     if (rank == 0) {
-        write_matrix_to_file(output_file, C_full, n);
+        write_matrix_to_file(output_file, C_full, rows_C,cols_C,pcols_C);
         printf("Result written to %s\n", output_file);
         free(A);
         free(B);
         free(C_full);
     }
+    printf("Done Writing to file\n");
 
     MPI_Comm_free(&grid);
     free(a_local);

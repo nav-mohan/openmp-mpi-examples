@@ -121,7 +121,7 @@ void PrintMatrix(int rows, int cols, double* mat) {
 // proc_grid_size is the processor grid size (assuming square qxq)
 MPI_Comm create_cartesian_grid(MPI_Comm base_comm, int * brows_A, int * bcols_A, int * brows_B, int * bcols_B, int * proc_grid_size, int rows_A, int cols_A, int rows_B, int cols_B)
 {
-    printf("create_cartesian_grid\n");
+    // printf("create_cartesian_grid\n");
     int npes;
     MPI_Comm_size(base_comm, &npes);
 
@@ -151,7 +151,7 @@ void scatter_2d_blocks(double *A_global, double *local,
                        int brows, int bcols, 
                        MPI_Comm grid)
 {
-    printf("scatter_2d_blocks\n");
+    // printf("scatter_2d_blocks\n");
     int npes, rank;
     MPI_Comm_size(grid, &npes);
     MPI_Comm_rank(grid, &rank);
@@ -202,7 +202,7 @@ void gather_2d_blocks(double *local, double *C_global,
                         int brows, int bcols,
                         MPI_Comm grid)
 {
-    printf("gather_2d_blocks\n");
+    // printf("gather_2d_blocks\n");
     int npes, rank;
     MPI_Comm_size(grid, &npes);
     MPI_Comm_rank(grid, &rank);
@@ -365,15 +365,14 @@ int main(int argc, char *argv[]) {
     rows_C = rows_A;
     cols_C = cols_B;
 
-    printf("start bcast for rows_A = %d, rows_B = %d, cols_A = %d, cols_B = %d \n",rows_A,rows_B,cols_A,cols_B);
-    printf("rank %d before bcast\n", rank); fflush(stdout);
+    // if(rank == 0) printf("start bcast for rows_A = %d, rows_B = %d, cols_A = %d, cols_B = %d \n",rows_A,rows_B,cols_A,cols_B);
     MPI_Bcast(&rows_A, 1, MPI_INT, 0, MPI_COMM_WORLD);
     MPI_Bcast(&rows_B, 1, MPI_INT, 0, MPI_COMM_WORLD);
     MPI_Bcast(&cols_A, 1, MPI_INT, 0, MPI_COMM_WORLD);
     MPI_Bcast(&cols_B, 1, MPI_INT, 0, MPI_COMM_WORLD);
     MPI_Bcast(&rows_C, 1, MPI_INT, 0, MPI_COMM_WORLD);
     MPI_Bcast(&cols_C, 1, MPI_INT, 0, MPI_COMM_WORLD);
-    printf("done bcast for rows/cols of A,B,C\n");
+    // if(rank == 0) printf("done bcast for rows/cols of A,B,C\n");
 
     /* Create Cartesian grid once and reuse */
     MPI_Comm grid = create_cartesian_grid(MPI_COMM_WORLD, 
@@ -456,7 +455,7 @@ int main(int argc, char *argv[]) {
     gather_2d_blocks(C, C_full, prows_C, pcols_C, brows_C, bcols_C, grid);
 
     /* Write result to output file */
-    printf("Writing to file\n");
+    // printf("Writing to file\n");
     if (rank == 0) {
         write_matrix_to_file(output_file, C_full, rows_C,cols_C,pcols_C);
         printf("Result written to %s\n", output_file);
@@ -464,7 +463,7 @@ int main(int argc, char *argv[]) {
         free(B_pad); // free the padding-adjusted matrices instead of the original unpadded matrices
         free(C_full);
     }
-    printf("Done Writing to file\n");
+    // printf("Done Writing to file\n");
 
     MPI_Comm_free(&grid);
     free(a_local);

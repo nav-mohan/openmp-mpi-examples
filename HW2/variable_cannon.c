@@ -344,6 +344,10 @@ int main(int argc, char *argv[]) {
     prows_C = prows_A;
     pcols_C = pcols_B;
 
+    double *a_local = malloc(brows_A * bcols_A * sizeof(double));
+    double *b_local = malloc(brows_B * bcols_B * sizeof(double));
+    C = calloc(brows_C * bcols_C, sizeof(double));
+
     /* Proper 2D scatter */
     scatter_2d_blocks(A, a_local, n, grid);
     scatter_2d_blocks(B, b_local, n, grid);

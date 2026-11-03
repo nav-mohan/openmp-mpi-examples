@@ -8,7 +8,9 @@
 
 
 /* ---------- Matrix reading from file (use streaming for very large files >500MB) ---------- */
-void read_matrix_streaming(const char *filename, double **A, double **B, int *n) {
+void read_matrix_streaming(const char *filename, double **A, double **B, 
+    int *rows_A, int *cols_A, int *rows_B, int *cols_B) 
+    {
     FILE *fp = fopen(filename, "r");
     if (!fp) { perror("fopen"); MPI_Abort(MPI_COMM_WORLD, 1); }
 
@@ -35,7 +37,11 @@ void read_matrix_streaming(const char *filename, double **A, double **B, int *n)
 
     rewind(fp);
 
-    *n = rowsA;
+    *rows_A = rowsA;
+    *rows_B = rowsB;
+    *cols_A = colsA;
+    *cols_B = colsB;
+    
     *A = malloc(rowsA * colsA * sizeof(double));
     *B = malloc(rowsB * colsB * sizeof(double));
 
@@ -283,12 +289,25 @@ int main(int argc, char *argv[]) {
     const char *output_file = argv[2];
 
     double *A = NULL, *B = NULL, *C = NULL, *C_full = NULL;
-    int n, nlocal;
+    int rows_A, rows_B, cols_A, cols_B, rows_C, cols_C;
+    int brows_A, bcols_A, brows_B, bcols_B, brows_C, bcols_C;
+    int q; // q x q process-grid 
 
     if (rank == 0)
-        read_matrix_streaming(input_file, &A, &B, &n);
+    {
+        read_matrix_streaming(input_file, &A, &B, &rows_A, &cols_A, &rows_B, &cols_B);
 
-    MPI_Bcast(&n, 1, MPI_INT, 0, MPI_COMM_WORLD);
+        // sanity check
+        if (rows_B != cols_A)
+        {
+            fprintf(stderr,"invalid input. A has dimensions %d x %d. B has dimension %d x %d. cols_A should equal rows_B\n", rows_A,cols_A,rows_B,cols_B); fflush(stdout);
+            MPI_Finalize();
+            return 1;
+        }
+    }
+    rows_C = rows_A;
+    cols_C = cols_A;
+
 
     /* Create Cartesian grid once and reuse */
     MPI_Comm grid = create_cartesian_grid(MPI_COMM_WORLD, &nlocal, n);

@@ -1,0 +1,21 @@
+diff --git a/canvas_old.c b/dtw_parallel.c
+index 4b41546..abaed5d 100644
+--- a/canvas_old.c
++++ b/dtw_parallel.c
+@@ -255,8 +255,6 @@ int main(int argc, char * argv[])
+                 const int NBC = (rows_B -1 + BLOCKSIZE - 1)/BLOCKSIZE; 
+                 // total number of blocks = NBR * NBC
+                 
+-                # pragma omp parallel 
+-                {
+                         for (int g = 0; g < NBR + NBC - 1; g++) 
+                         {
+                         // g is the g'th anti-diagonal of the interior of the DP matrix
+@@ -293,7 +291,6 @@ int main(int argc, char * argv[])
+                                         DP[i*rows_B + j] = dist[i*rows_B + j] + best;
+                                 }
+                                 }
+-                        }
+                         
+                         }
+                 }

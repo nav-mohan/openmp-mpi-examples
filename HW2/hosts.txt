@@ -1,0 +1,1 @@
+csel-plate01 slots=64
